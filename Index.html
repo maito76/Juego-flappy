@@ -2,112 +2,107 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Flappy Bird 3D con Three.js</title>
+  <title>Flappy 3D</title>
   <style>
-    body { margin: 0; overflow: hidden; background: #87ceeb; }
+    body { margin: 0; overflow: hidden; }
     canvas { display: block; }
   </style>
 </head>
 <body>
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.160.1/build/three.min.js"></script>
 <script>
-  // Setup
+  // Escena y cámara
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
-  const renderer = new THREE.WebGLRenderer();
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   document.body.appendChild(renderer.domElement);
 
-  // Bird (player)
-  const birdGeometry = new THREE.SphereGeometry(0.2, 16, 16);
-  const birdMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
-  const bird = new THREE.Mesh(birdGeometry, birdMaterial);
+  // Jugador
+  const bird = new THREE.Mesh(
+    new THREE.SphereGeometry(0.2, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0xffcc00 })
+  );
   bird.position.x = -2;
   scene.add(bird);
 
-  // Gravity
+  // Variables físicas
   let velocity = 0;
   const gravity = -0.005;
-  const jumpStrength = 0.09;
+  const jump = 0.09;
 
-  // Obstacles
+  // Obstáculos
   const pipes = [];
-  const pipeWidth = 0.5;
-  const pipeGap = 1.2;
+  const pipeWidth = 0.6;
+  const gap = 1.2;
 
-  function createPipePair(x) {
-    const holeY = (Math.random() * 2 - 1) * 1.2;
-    const topHeight = 2 - holeY + pipeGap / 2;
-    const bottomHeight = 2 + holeY - pipeGap / 2;
+  function addPipe(x) {
+    const hole = (Math.random() * 2 - 1) * 1.2;
+    const topHeight = 2 + hole - gap / 2;
+    const botHeight = 2 - hole - gap / 2;
 
-    const topGeometry = new THREE.BoxGeometry(pipeWidth, topHeight, 0.5);
-    const bottomGeometry = new THREE.BoxGeometry(pipeWidth, bottomHeight, 0.5);
-    const pipeMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+    const mat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+    const top = new THREE.Mesh(new THREE.BoxGeometry(pipeWidth, topHeight, 0.5), mat);
+    const bot = new THREE.Mesh(new THREE.BoxGeometry(pipeWidth, botHeight, 0.5), mat);
 
-    const topPipe = new THREE.Mesh(topGeometry, pipeMaterial);
-    const bottomPipe = new THREE.Mesh(bottomGeometry, pipeMaterial);
+    top.position.set(x, (topHeight / 2) + gap / 2, 0);
+    bot.position.set(x, -(botHeight / 2) - gap / 2, 0);
 
-    topPipe.position.set(x, (topHeight / 2) + pipeGap / 2, 0);
-    bottomPipe.position.set(x, -(bottomHeight / 2) - pipeGap / 2, 0);
-
-    scene.add(topPipe);
-    scene.add(bottomPipe);
-
-    pipes.push({ top: topPipe, bottom: bottomPipe });
+    scene.add(top, bot);
+    pipes.push({ top, bot });
   }
 
-  for (let i = 0; i < 3; i++) {
-    createPipePair(i * 3 + 4);
+  for (let i = 0; i < 4; i++) {
+    addPipe(i * 3 + 4);
   }
 
-  // Cámara
   camera.position.z = 5;
 
-  // Salto con clic
-  window.addEventListener('click', () => {
-    velocity = jumpStrength;
+  // Salto
+  window.addEventListener("click", () => {
+    velocity = jump;
   });
 
-  // Detección de colisiones
-  function checkCollision(bird, pipe) {
-    const b = bird.position;
-    const t = pipe.top;
-    const bo = pipe.bottom;
+  // Colisiones
+  function collision(bird, pipe) {
+    const bx = bird.position.x, by = bird.position.y;
+    const tx = pipe.top.position.x, ty = pipe.top.position.y;
+    const tyh = pipe.top.geometry.parameters.height / 2;
+    const byh = pipe.bot.geometry.parameters.height / 2;
 
-    const inX = Math.abs(b.x - t.position.x) < (pipeWidth / 2 + 0.2);
-    const inTopY = b.y + 0.2 > t.position.y - t.geometry.parameters.height / 2;
-    const inBottomY = b.y - 0.2 < bo.position.y + bo.geometry.parameters.height / 2;
+    const inX = Math.abs(bx - tx) < pipeWidth / 2 + 0.2;
+    const topHit = by + 0.2 > ty - tyh;
+    const botHit = by - 0.2 < pipe.bot.position.y + byh;
 
-    return inX && (inTopY || inBottomY);
+    return inX && (topHit || botHit);
   }
 
   // Animación
   function animate() {
     requestAnimationFrame(animate);
 
-    // Bird physics
+    // Movimiento del jugador
     velocity += gravity;
     bird.position.y += velocity;
 
-    // Pipes movement
+    // Movimiento de tuberías
     for (let pipe of pipes) {
       pipe.top.position.x -= 0.03;
-      pipe.bottom.position.x -= 0.03;
+      pipe.bot.position.x -= 0.03;
 
-      // Reset pipe position
-      if (pipe.top.position.x < -5) {
-        scene.remove(pipe.top, pipe.bottom);
+      // Reinicio de tuberías
+      if (pipe.top.position.x < -6) {
+        scene.remove(pipe.top, pipe.bot);
         pipes.shift();
-        createPipePair(4);
+        addPipe(6);
       }
 
-      // Check collisions
-      if (checkCollision(bird, pipe)) {
-        location.reload(); // Reinicia el juego
+      if (collision(bird, pipe)) {
+        location.reload();
       }
     }
 
-    // Fall off screen
+    // Si se sale de la pantalla
     if (bird.position.y < -3 || bird.position.y > 3) {
       location.reload();
     }
