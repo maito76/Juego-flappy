@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Flappy Bird 3D con Three.js</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #87ceeb; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js"></script>
+<script>
+  // Setup
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+  const renderer = new THREE.WebGLRenderer();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  // Bird (player)
+  const birdGeometry = new THREE.SphereGeometry(0.2, 16, 16);
+  const birdMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+  const bird = new THREE.Mesh(birdGeometry, birdMaterial);
+  bird.position.x = -2;
+  scene.add(bird);
+
+  // Gravity
+  let velocity = 0;
+  const gravity = -0.005;
+  const jumpStrength = 0.09;
+
+  // Obstacles
+  const pipes = [];
+  const pipeWidth = 0.5;
+  const pipeGap = 1.2;
+
+  function createPipePair(x) {
+    const holeY = (Math.random() * 2 - 1) * 1.2;
+    const topHeight = 2 - holeY + pipeGap / 2;
+    const bottomHeight = 2 + holeY - pipeGap / 2;
+
+    const topGeometry = new THREE.BoxGeometry(pipeWidth, topHeight, 0.5);
+    const bottomGeometry = new THREE.BoxGeometry(pipeWidth, bottomHeight, 0.5);
+    const pipeMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+
+    const topPipe = new THREE.Mesh(topGeometry, pipeMaterial);
+    const bottomPipe = new THREE.Mesh(bottomGeometry, pipeMaterial);
+
+    topPipe.position.set(x, (topHeight / 2) + pipeGap / 2, 0);
+    bottomPipe.position.set(x, -(bottomHeight / 2) - pipeGap / 2, 0);
+
+    scene.add(topPipe);
+    scene.add(bottomPipe);
+
+    pipes.push({ top: topPipe, bottom: bottomPipe });
+  }
+
+  for (let i = 0; i < 3; i++) {
+    createPipePair(i * 3 + 4);
+  }
+
+  // Cámara
+  camera.position.z = 5;
+
+  // Salto con clic
+  window.addEventListener('click', () => {
+    velocity = jumpStrength;
+  });
+
+  // Detección de colisiones
+  function checkCollision(bird, pipe) {
+    const b = bird.position;
+    const t = pipe.top;
+    const bo = pipe.bottom;
+
+    const inX = Math.abs(b.x - t.position.x) < (pipeWidth / 2 + 0.2);
+    const inTopY = b.y + 0.2 > t.position.y - t.geometry.parameters.height / 2;
+    const inBottomY = b.y - 0.2 < bo.position.y + bo.geometry.parameters.height / 2;
+
+    return inX && (inTopY || inBottomY);
+  }
+
+  // Animación
+  function animate() {
+    requestAnimationFrame(animate);
+
+    // Bird physics
+    velocity += gravity;
+    bird.position.y += velocity;
+
+    // Pipes movement
+    for (let pipe of pipes) {
+      pipe.top.position.x -= 0.03;
+      pipe.bottom.position.x -= 0.03;
+
+      // Reset pipe position
+      if (pipe.top.position.x < -5) {
+        scene.remove(pipe.top, pipe.bottom);
+        pipes.shift();
+        createPipePair(4);
+      }
+
+      // Check collisions
+      if (checkCollision(bird, pipe)) {
+        location.reload(); // Reinicia el juego
+      }
+    }
+
+    // Fall off screen
+    if (bird.position.y < -3 || bird.position.y > 3) {
+      location.reload();
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  animate();
+</script>
+</body>
+</html>
